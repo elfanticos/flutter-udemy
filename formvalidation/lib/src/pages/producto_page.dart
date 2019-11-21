@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:formvalidation/src/models/producto_model.dart';
 import 'package:formvalidation/src/providers/producto_provider.dart';
 import 'package:formvalidation/src/utils/utils.dart' as utils;
+import 'package:image_picker/image_picker.dart';
 
 class ProductoPage extends StatefulWidget {
   @override
@@ -14,6 +17,7 @@ class _ProductoPageState extends State<ProductoPage> {
   final productoProvider = new ProductoProvider();
   ProductoModel producto = new ProductoModel();
   bool _guardando = false;
+  File foto;
 
   @override
   Widget build(BuildContext context) {
@@ -28,11 +32,11 @@ class _ProductoPageState extends State<ProductoPage> {
         actions: <Widget>[
           IconButton(
             icon: Icon(Icons.photo_size_select_actual),
-            onPressed: () {},
+            onPressed: _seleccionarFoto,
           ),
           IconButton(
             icon: Icon(Icons.camera_alt),
-            onPressed: (){},
+            onPressed: _tomarFoto,
           )
         ],
       ),
@@ -43,6 +47,7 @@ class _ProductoPageState extends State<ProductoPage> {
             key: formKey,
             child: Column(
               children: <Widget>[
+                _mostrarFoto(),
                 _crearNombre(),
                 _crearPrecio(),
                 _crearDisponible(),
@@ -59,10 +64,8 @@ class _ProductoPageState extends State<ProductoPage> {
     return TextFormField(
       initialValue: producto.titulo,
       textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(
-        labelText: 'Producto'
-      ),
-      onSaved: (value) => producto.titulo = value, 
+      decoration: InputDecoration(labelText: 'Producto'),
+      onSaved: (value) => producto.titulo = value,
       validator: (value) {
         if (value.length < 3) {
           return 'Ingrese el nombre del producto';
@@ -77,10 +80,8 @@ class _ProductoPageState extends State<ProductoPage> {
     return TextFormField(
       initialValue: producto.valor.toString(),
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Precio'
-      ),
-      onSaved: (value) => producto.valor = double.parse(value), 
+      decoration: InputDecoration(labelText: 'Precio'),
+      onSaved: (value) => producto.valor = double.parse(value),
       validator: (value) {
         if (utils.isNumeric(value)) {
           return null;
@@ -104,9 +105,7 @@ class _ProductoPageState extends State<ProductoPage> {
 
   Widget _crearBoton() {
     return RaisedButton.icon(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20.0)
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
       color: Colors.deepPurple,
       textColor: Colors.white,
       label: Text('Guardar'),
@@ -115,20 +114,23 @@ class _ProductoPageState extends State<ProductoPage> {
     );
   }
 
-  void _submit() {
+  void _submit() async {
+
     if (!formKey.currentState.validate()) return;
 
     formKey.currentState.save();
     setState(() { _guardando = true; });
-    print(producto.titulo);
-    print(producto.valor);
-    print(producto.disponible);
+    
+    if (foto != null) {
+      producto.fotoUrl = await productoProvider.subirImagen(foto);
+    }
+
     if (producto.id == null) {
       productoProvider.crearProducto(producto);
     } else {
       productoProvider.editarProducto(producto);
     }
-    // setState(() { _guardando = false; });
+
     mostrarSnackbar('Registro guardado');
     Navigator.pop(context);
   }
@@ -139,5 +141,40 @@ class _ProductoPageState extends State<ProductoPage> {
       duration: Duration(milliseconds: 1500),
     );
     scaffoldKey.currentState.showSnackBar(snackbar);
+  }
+
+  _seleccionarFoto() async {
+    _procesarImagen(ImageSource.gallery);
+  }
+  _tomarFoto() async {
+    _procesarImagen(ImageSource.camera);
+  }
+
+  Widget _mostrarFoto() { 
+    if (producto.fotoUrl != null) {
+      return FadeInImage(
+        image: NetworkImage(producto.fotoUrl),
+        placeholder: AssetImage('assets/jar-loading.gif'),
+        height: 300.0,
+        fit: BoxFit.cover,
+      );
+    } else {
+      return Image(
+        image: AssetImage(foto?.path ?? 'assets/no-image.png'),
+        height: 300.0,
+        fit: BoxFit.cover,
+      );
+    }
+  }
+
+  _procesarImagen(ImageSource origen) async {
+    foto = await ImagePicker.pickImage(
+      source: origen
+    );
+
+    if (foto != null) {
+      producto.fotoUrl = null;
+    }
+    setState(() {});
   }
 }
